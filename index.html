@@ -169,13 +169,11 @@
 
             if (coortinates[0] && coortinates[1]) {
                 if (now - nextPoint.timestamp > 10000) {
-                    console.log('a')
                     renderPath()
                 } else {
                     const current = Date.now()
                     const delta = nextPoint.timedelta - (current - now)
                     if (delta < 0) {
-                        console.log('b')
                         renderPath()
                     } else {
                         setTimeout(renderPath, nextPoint.timedelta - (current - now));
