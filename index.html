@@ -12,6 +12,7 @@
     <script>
         let GLYMPSE_AUTH_KEY = ''
         let map = undefined
+        let coortinates = []
         async function inigGlympse() {
             await initGMaps()
 
@@ -40,13 +41,14 @@
                     ...
                 ] 
                 */
-               
-                let coortinates = []
-                let [lastTimestamp, lastLat, lastLng, ] = locations.shift()
+
+                let [lastTimestamp, lastLat, lastLng, speed] = locations.shift()
                 coortinates.push({
                     timestamp: lastTimestamp,
+                    // timedelta: timestamp,
                     lat: lastLat,
-                    lng: lastLng
+                    lng: lastLng,
+                    speed,
                 })
 
                 locations.forEach(e => {
@@ -56,20 +58,24 @@
                     lastLng += lng;
                     coortinates.push({
                         timestamp: lastTimestamp,
+                        timedelta: timestamp, 
                         lat: lastLat,
-                        lng: lastLng
+                        lng: lastLng,
+                        speed,
                     })  
                 })
 
-                const gpath = new google.maps.Polyline({
-                    path: coortinates.map(e => {return {lat: e.lat / 1000000, lng: e.lng / 1000000}}),
-                    geodesic: true,
-                    strokeColor: "#FF0000",
-                    strokeOpacity: 1.0,
-                    strokeWeight: 2,
-                })
+                // const gpath = new google.maps.Polyline({
+                //     path: coortinates.map(e => {return {lat: e.lat / 1000000, lng: e.lng / 1000000}}),
+                //     geodesic: true,
+                //     strokeColor: "#FF0000",
+                //     strokeOpacity: 1.0,
+                //     strokeWeight: 2,
+                // })
 
-                gpath.setMap(map)
+                // gpath.setMap(map)
+
+                renderPath()
 
                 setTimeout(() => {
                     nextLocation(share_resp_json['next'])
@@ -85,13 +91,15 @@
 
             if (locations) {
 
-                let corrds = []
+                // let coortinates = []
 
-                let [lastTimestamp, lastLat, lastLng, ] = locations.shift()
-                corrds.push({
+                let [lastTimestamp, lastLat, lastLng, speed] = locations.shift()
+                coortinates.push({
                     timestamp: lastTimestamp,
+                    // timedelta: lastTimestamp, 
                     lat: lastLat,
-                    lng: lastLng
+                    lng: lastLng,
+                    speed,
                 })
 
                 locations.forEach(e => {
@@ -99,25 +107,25 @@
                     lastTimestamp += timestamp;
                     lastLat += lat;
                     lastLng += lng;
-                    corrds.push({
+                    coortinates.push({
                         timestamp: lastTimestamp,
+                        timedelta: timestamp, 
                         lat: lastLat,
-                        lng: lastLng
+                        lng: lastLng,
+                        speed,
                     })  
                 })
 
-                const gpath = new google.maps.Polyline({
-                    path: corrds.map(e => {return {lat: e.lat / 1000000, lng: e.lng / 1000000}}),
-                    geodesic: true,
-                    strokeColor: "#FF0000",
-                    strokeOpacity: 1.0,
-                    strokeWeight: 2,
-                })
+                // const gpath = new google.maps.Polyline({
+                //     path: coortinates.map(e => {return {lat: e.lat / 1000000, lng: e.lng / 1000000}}),
+                //     geodesic: true,
+                //     strokeColor: "#FF0000",
+                //     strokeOpacity: 1.0,
+                //     strokeWeight: 2,
+                // })
 
-                gpath.setMap(map)
+                // gpath.setMap(map)
 
-
-                console.log(shareRespJson)
             } else {
                 console.log('warn: no data')
             }
@@ -126,6 +134,56 @@
                 nextLocation(shareRespJson['next'])
             }, 5000)
         }
+        async function renderPath() {
+            const now = Date.now()
+            const targetPoint = coortinates.shift();
+            const nextPoint = coortinates[0];
+            const nextNextPoint = coortinates[1]
+            const gpath = new google.maps.Polyline({
+                path: [
+                    {
+                        lat: targetPoint.lat / 1000000,
+                        lng: targetPoint.lng / 1000000
+                    },
+                    {
+                        lat: nextPoint.lat / 1000000,
+                        lng: nextPoint.lng / 1000000,
+                    }
+                ],
+                geodesic: true,
+                strokeColor: "#FF0000",
+                strokeOpacity: 1.0,
+                strokeWeight: 2,
+            })
+            gpath.setMap(map)
+
+            document.querySelector('#speed').innerHTML = nextPoint.speed * 0.036
+            document.querySelector('#time').innerHTML = nextPoint.timestamp
+
+            console.log(nextPoint, nextNextPoint, )
+
+            while(!coortinates[0] || !coortinates[1]) {
+                console.log("warn: not enough data")
+                await new Promise(e => setTimeout(e, 200))
+            }
+
+            if (coortinates[0] && coortinates[1]) {
+                if (now - nextPoint.timestamp > 10000) {
+                    console.log('a')
+                    renderPath()
+                } else {
+                    const current = Date.now()
+                    const delta = nextPoint.timedelta - (current - now)
+                    if (delta < 0) {
+                        console.log('b')
+                        renderPath()
+                    } else {
+                        setTimeout(renderPath, nextPoint.timedelta - (current - now));
+                    }
+                }
+            }
+        }
+        
         async function initGMaps() {
             const { Map } = await google.maps.importLibrary("maps");
             const map_element = document.querySelector("#map_canvas")
@@ -149,6 +207,12 @@
         <button onclick="initGmapsScript()">map</button>
     </div>
     <div id="map_canvas" style="height:500px;"></div>
+    <div>
+        speed
+        <span id="speed">0</span> km/h
+        time
+        <span id="time"></span>
+    </div>
 </body>
 
 </html>
