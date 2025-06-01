@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<head>
+    <!-- <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCkUOdZ5y7hMm0yrcCQoCvLwzdM6M8s5qk"></script> -->
+    <script>
+        function initGoogleAPI(key) {
+            (g=>{var h,a,k,p="The Google Maps JavaScript API",c="google",l="importLibrary",q="__ib__",m=document,b=window;b=b[c]||(b[c]={});var d=b.maps||(b.maps={}),r=new Set,e=new URLSearchParams,u=()=>h||(h=new Promise(async(f,n)=>{await (a=m.createElement("script"));e.set("libraries",[...r]+"");for(k in g)e.set(k.replace(/[A-Z]/g,t=>"_"+t[0].toLowerCase()),g[k]);e.set("callback",c+".maps."+q);a.src=`https://maps.${c}apis.com/maps/api/js?`+e;d[q]=f;a.onerror=()=>h=n(Error(p+" could not load."));a.nonce=m.querySelector("script[nonce]")?.nonce||"";m.head.append(a)}));d[l]?console.warn(p+" only loads once. Ignoring:",g):d[l]=(f,...n)=>r.add(f)&&u().then(()=>d[l](f,...n))})({
+                key,
+                v: "weekly",
+            });
+        }
+      </script>
+    <script>
+        let GLYMPSE_AUTH_KEY = ''
+        let map = undefined
+        async function inigGlympse() {
+            await initGMaps()
+
+            const shareCode = document.querySelector("#share_code").value;
+            const glympseAuthApi = "https://api.glympse.com/v2/account/login?password=password&api_key=0SLq661pXHmqdWgI8Yb1&username=viewer"
+            const shareCodeApi = `https://api.glympse.com/v2/invites/${shareCode}?next=0&full_trail=true`
+
+            if (!GLYMPSE_AUTH_KEY) {
+                const authResp = await fetch(glympseAuthApi, {headers: {"Accept": "application/json"}})
+                const authRespJson = await authResp.json();
+                GLYMPSE_AUTH_KEY = authRespJson['response']['access_token']
+                console.log(GLYMPSE_AUTH_KEY)
+            } else {
+                console.log("warn: auth already done")
+            }
+
+            if (!shareCode) {
+                console.log("warn: no share code")
+            } else {
+                const share_resp = await fetch(shareCodeApi, {headers: {"Authorization": `Bearer ${GLYMPSE_AUTH_KEY}`}})
+                const share_resp_json = (await share_resp.json())["response"]
+                const locations = share_resp_json["location"]
+                /*
+                [
+                    [timestamp, lat, lng, ...],
+                    ...
+                ] 
+                */
+               
+                let coortinates = []
+                let [lastTimestamp, lastLat, lastLng, ] = locations.shift()
+                coortinates.push({
+                    timestamp: lastTimestamp,
+                    lat: lastLat,
+                    lng: lastLng
+                })
+
+                locations.forEach(e => {
+                    const [timestamp, lat, lng, ] = e
+                    lastTimestamp += timestamp;
+                    lastLat += lat;
+                    lastLng += lng;
+                    coortinates.push({
+                        timestamp: lastTimestamp,
+                        lat: lastLat,
+                        lng: lastLng
+                    })  
+                })
+
+                const gpath = new google.maps.Polyline({
+                    path: coortinates.map(e => {return {lat: e.lat / 1000000, lng: e.lng / 1000000}}),
+                    geodesic: true,
+                    strokeColor: "#FF0000",
+                    strokeOpacity: 1.0,
+                    strokeWeight: 2,
+                })
+
+                gpath.setMap(map)
+
+                setTimeout(() => {
+                    nextLocation(share_resp_json['next'])
+                }, 5000)
+            }
+        }
+        async function nextLocation(next) {
+            const shareCode = document.querySelector("#share_code").value;
+            const shareCodeApi = `https://api.glympse.com/v2/invites/${shareCode}?next=${next}`
+            const shareResp = await fetch(shareCodeApi, {headers: {"Authorization": `Bearer ${GLYMPSE_AUTH_KEY}`}})
+            const shareRespJson = (await shareResp.json())["response"]
+            const locations = shareRespJson["location"]
+
+            if (locations) {
+
+                let corrds = []
+
+                let [lastTimestamp, lastLat, lastLng, ] = locations.shift()
+                corrds.push({
+                    timestamp: lastTimestamp,
+                    lat: lastLat,
+                    lng: lastLng
+                })
+
+                locations.forEach(e => {
+                    const [timestamp, lat, lng, ] = e
+                    lastTimestamp += timestamp;
+                    lastLat += lat;
+                    lastLng += lng;
+                    corrds.push({
+                        timestamp: lastTimestamp,
+                        lat: lastLat,
+                        lng: lastLng
+                    })  
+                })
+
+                const gpath = new google.maps.Polyline({
+                    path: corrds.map(e => {return {lat: e.lat / 1000000, lng: e.lng / 1000000}}),
+                    geodesic: true,
+                    strokeColor: "#FF0000",
+                    strokeOpacity: 1.0,
+                    strokeWeight: 2,
+                })
+
+                gpath.setMap(map)
+
+
+                console.log(shareRespJson)
+            } else {
+                console.log('warn: no data')
+            }
+
+            setTimeout(() => {
+                nextLocation(shareRespJson['next'])
+            }, 5000)
+        }
+        async function initGMaps() {
+            const { Map } = await google.maps.importLibrary("maps");
+            const map_element = document.querySelector("#map_canvas")
+            map = new Map(map_element, {
+                center: { lat: 35.6681, lng: 139.5760 },
+                zoom: 8,
+            });
+        }
+        function initGmapsScript() {
+            initGoogleAPI(document.querySelector("#gmaps_key").value)
+        }
+    </script>
+</head>
+<body>
+    <div>
+        share id
+        <input type="text" id="share_code">
+        <button onclick="inigGlympse()">init</button>
+        google maps api key
+        <input type="text" id="gmaps_key">
+        <button onclick="initGmapsScript()">map</button>
+    </div>
+    <div id="map_canvas" style="height:500px;"></div>
+</body>
+
+</html>
